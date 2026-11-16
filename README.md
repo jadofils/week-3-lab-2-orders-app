@@ -25,7 +25,7 @@ merge to main
 ```
 
 1. The **Test** job runs `mvn verify` on every pull request and every push.
-2. On `main`, the **Build and push** job requests a GitHub OIDC token and exchanges it for temporary AWS credentials on the role in the `AWS_ROLE_ARN` variable. That role trusts only `repo:jadofils/week-3-lab-2-orders-app:ref:refs/heads/main`.
+2. On `main`, the **Build and push** job requests a GitHub OIDC token and exchanges it for temporary AWS credentials on the role in the `AWS_ROLE_ARN` variable. That role trusts only `repo:jadofils@114186160/week-3-lab-2-orders-app@1460005073:ref:refs/heads/main` (GitHub's immutable subject: owner and repository names with their permanent numeric IDs).
 3. It pushes the image as `sha-<commit>` and then moves `latest` to it.
 4. The `latest` push fires the EventBridge rule in the infrastructure stack. CodePipeline pins the image by digest, and CodeDeploy shifts traffic 10% → 100% with automatic rollback on errors.
 
