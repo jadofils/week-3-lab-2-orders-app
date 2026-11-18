@@ -26,6 +26,32 @@ env:
   ECR_REPOSITORY: onward-dev-orders
 
 jobs:
+  # Fails the run if any credential is committed, in the current files or anywhere in history.
+  secret-scan:
+    name: Scan for hard-coded credentials
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history, so a key added and later deleted is still caught
+
+      # gitleaks matches 150+ credential patterns (AWS access keys, private keys, GitHub tokens,
+      # passwords in URLs ...). --redact keeps any finding out of the public log.
+      - name: gitleaks (all commits)
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.24.0 \
+            git /repo --redact --verbose --exit-code 1
+
+      # The delivery path must stay keyless: no workflow may pass AWS access keys.
+      - name: Workflows use OIDC only
+        run: |
+          # Matches an aws-access-key-id / aws-secret-access-key input, or any expression reading an AWS secret.
+          if grep -rnE '^\s*aws-(access-key-id|secret-access-key|session-token):|\$\{\{\s*secrets\.AWS' .github/workflows; then
+            echo "::error::A workflow passes AWS access keys. Use role-to-assume (OIDC) instead."
+            exit 1
+          fi
+          echo "No AWS access keys referenced; AWS sign-in is OIDC only."
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -45,7 +71,7 @@ jobs:
 
   push:
     name: Build and push to ECR
-    needs: test
+    needs: [secret-scan, test]
     # Only main may release. The AWS role also trusts only refs/heads/main, so a pull request
     # could not assume it even if this condition were removed.
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
