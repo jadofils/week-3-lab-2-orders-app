@@ -29,13 +29,5 @@ th { color:var(--muted); font-size:12px; letter-spacing:.04em; text-transform:up
 td.server-cell { font:12px ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
 .empty { color:var(--muted); padding:12px 0; }
 footer { width:min(1040px,calc(100% - 32px)); margin:-34px auto 28px; color:var(--muted); font-size:12px; }
-.grid + .grid { margin-top:18px; }
 .muted { color:#4f7d6c; font-size:13px; }
-.actions { display:flex; gap:10px; flex-wrap:wrap; }
-button.secondary { background:#fff; color:var(--blue); border:1px solid var(--blue); }
-button.secondary:hover { background:#eef6f9; }
-#watch-button { margin:0 0 12px; }
-tr.stale td { color:var(--muted); text-decoration:line-through; }
-.results { margin:12px 0 0; padding-left:18px; font-size:13px; }
-.results li { overflow-wrap:anywhere; }
 @media (max-width:760px) { .grid { grid-template-columns:1fr; } section { padding:18px; } header { padding-top:24px; padding-bottom:24px; } }

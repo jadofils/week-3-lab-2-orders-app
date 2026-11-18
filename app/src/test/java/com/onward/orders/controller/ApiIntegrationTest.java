@@ -1,6 +1,7 @@
 package com.onward.orders.controller;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -97,6 +98,9 @@ class ApiIntegrationTest {
     void servesUserInterface() throws Exception {
         mvc.perform(get("/index.html"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Sales-day CPU spike")));
+                .andExpect(content().string(containsString("Place a sample order")))
+                .andExpect(content().string(containsString("Recent orders")))
+                .andExpect(content().string(not(containsString("Which server is answering?"))))
+                .andExpect(content().string(not(containsString("Sales-day CPU spike"))));
     }
 }

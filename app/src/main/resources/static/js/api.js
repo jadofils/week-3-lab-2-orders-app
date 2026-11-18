@@ -21,7 +21,5 @@ async function request(url, options = {}) {
 export const api = {
   getInfo: () => request('/api/info'),
   listOrders: () => request('/api/orders'),
-  createOrder: (order) => request('/api/orders', { method: 'POST', body: JSON.stringify(order) }),
-  startSpike: (seconds) => request('/api/load/spike', { method: 'POST', body: JSON.stringify({ seconds }) }),
-  stopSpike: () => request('/api/load/stop', { method: 'POST' })
+  createOrder: (order) => request('/api/orders', { method: 'POST', body: JSON.stringify(order) })
 };

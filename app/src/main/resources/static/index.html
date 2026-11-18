@@ -46,35 +46,6 @@
     </section>
   </div>
 
-  <div class="grid">
-    <section aria-labelledby="watch-title">
-      <h2 id="watch-title">Which server is answering?</h2>
-      <p class="helper">Sends one request per second through the load balancer and counts which server answered. Leave it running while capacity changes to see servers appear and disappear.</p>
-      <button id="watch-button" type="button">Start watching</button>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Server</th><th>Zone</th><th>Private IP</th><th>Answers</th><th>Last seen</th></tr></thead>
-          <tbody id="servers"><tr><td colspan="5" class="empty">Not watching yet.</td></tr></tbody>
-        </table>
-      </div>
-    </section>
-    <section aria-labelledby="spike-title">
-      <h2 id="spike-title">Sales-day CPU spike</h2>
-      <p class="helper">Keeps every CPU core busy on the servers that receive these requests, so average CPU rises above the scaling target and Auto Scaling adds servers. Each server runs at most one spike, for a limited time.</p>
-      <form id="spike-form">
-        <label for="spike-seconds">Spike length (seconds, 30 to 600)</label>
-        <input id="spike-seconds" name="seconds" type="number" min="30" max="600" value="420" required>
-        <label for="spike-requests">Requests to spread across servers</label>
-        <input id="spike-requests" name="requests" type="number" min="1" max="20" value="8" required>
-        <div class="actions">
-          <button id="spike-button" type="submit">Start spike</button>
-          <button id="stop-button" type="button" class="secondary">Stop spikes</button>
-        </div>
-        <p id="spike-message" class="notice" role="status" aria-live="polite"></p>
-      </form>
-      <ul id="spike-results" class="results"></ul>
-    </section>
-  </div>
 </main>
 <footer>Lab demonstration app. Orders are not stored in a database and should not contain real customer data.Changed for testing purpose</footer>
 </body>
