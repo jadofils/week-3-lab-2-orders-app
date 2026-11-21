@@ -1,0 +1,11 @@
+# Tells CodeDeploy which ECS service to release and which container receives the load balancer's traffic.
+# CodeDeploy replaces <TASK_DEFINITION> with the task definition revision it registers from taskdef.json.
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: orders
+          ContainerPort: 8080

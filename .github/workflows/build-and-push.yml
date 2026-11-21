@@ -1,8 +1,9 @@
-# CD: builds the image and pushes it to Amazon ECR, signing in to AWS with GitHub OIDC
+# CD: builds the image and pushes it to Amazon ECR, and uploads the deployment bundle
+# (deploy/taskdef.json + deploy/appspec.yaml) to S3, signing in to AWS with GitHub OIDC
 # (no stored AWS keys). It runs only after the CI workflow (ci.yml) has passed on a push to main,
 # and it builds exactly the commit that CI tested.
 #
-# Pushing the "latest" tag fires the EventBridge rule onward-dev-orders-image-pushed, which starts
+# Order matters: the bundle is uploaded before "latest" is pushed, because pushing "latest" fires the EventBridge rule onward-dev-orders-image-pushed, which starts
 # CodePipeline: CodeDeploy then releases the image blue/green. Nothing else is triggered from here.
 #
 # Repository variables (Settings -> Secrets and variables -> Actions -> Variables), not secrets:
@@ -29,6 +30,7 @@ concurrency:
 
 env:
   ECR_REPOSITORY: onward-dev-orders
+  BUNDLE_KEY: deploy/deploy-bundle.zip   # bucket: onward-dev-orders-deploy-bundle-<account-id>
 
 jobs:
   push:
@@ -58,6 +60,7 @@ jobs:
           ref: ${{ env.RELEASE_SHA }}
 
       - name: Sign in to AWS with OIDC
+        id: aws
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
@@ -74,9 +77,23 @@ jobs:
           IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
         run: docker build --platform linux/amd64 -t "$IMAGE:sha-${RELEASE_SHA::7}" -t "$IMAGE:latest" .
 
-      - name: Push image
+      - name: Push sha-<commit>
         env:
           IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+        run: docker push "$IMAGE:sha-${RELEASE_SHA::7}"
+
+      # Fill the account and Region into the task definition, zip both files, upload to S3.
+      - name: Upload deployment bundle to S3
+        env:
+          ACCOUNT_ID: ${{ steps.aws.outputs.aws-account-id }}
+          REGION: ${{ vars.AWS_REGION }}
         run: |
-          docker push "$IMAGE:sha-${RELEASE_SHA::7}"
-          docker push "$IMAGE:latest"
+          sed -i -e "s/<AWS_ACCOUNT_ID>/$ACCOUNT_ID/g" -e "s/<AWS_REGION>/$REGION/g" deploy/taskdef.json
+          (cd deploy && zip -q ../deploy-bundle.zip taskdef.json appspec.yaml)
+          aws s3 cp deploy-bundle.zip "s3://onward-dev-orders-deploy-bundle-$ACCOUNT_ID/$BUNDLE_KEY"
+
+      # Last: moving "latest" starts the pipeline, which reads the bundle uploaded above.
+      - name: Push latest
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+        run: docker push "$IMAGE:latest"

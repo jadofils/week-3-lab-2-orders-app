@@ -61,7 +61,7 @@ jobs:
         working-directory: app
         run: mvn -B verify
 
-  # Proves the Dockerfile still builds, so a broken image is caught on the pull request,
+  # Proves the Dockerfile still builds and the deployment files are valid, so a broken image is caught on the pull request,
   # not during a release. The image is thrown away; nothing is pushed.
   image-build:
     name: Image builds
@@ -71,3 +71,11 @@ jobs:
 
       - name: docker build (no push)
         run: docker build --platform linux/amd64 -t onward-orders:ci .
+
+      # The deployment files CodeDeploy reads must be valid, so a typo fails here, not in a release.
+      - name: Deployment files are valid
+        run: |
+          python3 -c "import json; json.load(open('deploy/taskdef.json'))"
+          python3 -c "import yaml; yaml.safe_load(open('deploy/appspec.yaml'))"
+          grep -q '<IMAGE1_NAME>' deploy/taskdef.json
+          echo "taskdef.json and appspec.yaml are valid."
