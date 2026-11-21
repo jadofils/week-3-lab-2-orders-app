@@ -1,0 +1,73 @@
+# CI: checks every pull request and every push to main. It never touches AWS and has no AWS access.
+#
+# When this workflow succeeds on a push to main, it triggers build-and-push.yml (CD), which
+# releases the same commit. A failed check here means nothing is built or released.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true   # a newer push to the same branch replaces an older run
+
+jobs:
+  # Fails if any credential is committed, in the current files or anywhere in history.
+  secret-scan:
+    name: Scan for hard-coded credentials
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history, so a key added and later deleted is still caught
+
+      # gitleaks matches 150+ credential patterns (AWS access keys, private keys, GitHub tokens,
+      # passwords in URLs ...). --redact keeps any finding out of the public log.
+      - name: gitleaks (all commits)
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.24.0 \
+            git /repo --redact --verbose --exit-code 1
+
+      # The delivery path must stay keyless: no workflow may pass AWS access keys.
+      - name: Workflows use OIDC only
+        run: |
+          # Matches an aws-access-key-id / aws-secret-access-key input, or any expression reading an AWS secret.
+          if grep -rnE '^\s*aws-(access-key-id|secret-access-key|session-token):|\$\{\{\s*secrets\.AWS' .github/workflows; then
+            echo "::error::A workflow passes AWS access keys. Use role-to-assume (OIDC) instead."
+            exit 1
+          fi
+          echo "No AWS access keys referenced; AWS sign-in is OIDC only."
+
+  # Unit and integration tests.
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: app/pom.xml
+
+      - name: mvn verify
+        working-directory: app
+        run: mvn -B verify
+
+  # Proves the Dockerfile still builds, so a broken image is caught on the pull request,
+  # not during a release. The image is thrown away; nothing is pushed.
+  image-build:
+    name: Image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: docker build (no push)
+        run: docker build --platform linux/amd64 -t onward-orders:ci .

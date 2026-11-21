@@ -10,7 +10,8 @@ One Spring Boot application, with the order API and the browser UI packaged in o
 | --- | --- |
 | [`app/`](app/README.md) | The Spring Boot application (Java 21): API, UI, tests |
 | [`Dockerfile`](Dockerfile) | Two-stage build: Maven builds the JAR, then a Java 21 JRE image runs it as a non-root user on port 8080 |
-| [`.github/workflows/build-and-push.yml`](.github/workflows/build-and-push.yml) | Tests every pull request; on `main`, builds the image and pushes it to Amazon ECR with OIDC |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | **CI**, on every pull request and push: credential scan, `mvn verify`, and a check that the image builds. No AWS access. |
+| [`.github/workflows/build-and-push.yml`](.github/workflows/build-and-push.yml) | **CD**, only after CI passes on `main`: builds the tested commit and pushes it to Amazon ECR with OIDC |
 
 ## How a change reaches customers
 
@@ -18,14 +19,15 @@ Merging to `main` is the only manual step.
 
 ```text
 merge to main
-  └─▶ GitHub Actions: mvn verify → docker build
-        └─▶ OIDC token → AWS role onward-dev-github-actions-role (no stored keys)
-              └─▶ ECR onward-dev-orders: sha-<commit> (immutable) + latest
-                    └─▶ EventBridge rule (push of latest) → CodePipeline → CodeDeploy blue/green
+  └─▶ CI (ci.yml): credential scan · mvn verify · image builds          ── fails → nothing is released
+        └─▶ CD (build-and-push.yml), only if CI passed: docker build of the same commit
+              └─▶ OIDC token → AWS role onward-dev-github-actions-role (no stored keys)
+                    └─▶ ECR onward-dev-orders: sha-<commit> (immutable) + latest
+                          └─▶ EventBridge rule (push of latest) → CodePipeline → CodeDeploy blue/green
 ```
 
-1. The **Test** job runs `mvn verify` on every pull request and every push.
-2. On `main`, the **Build and push** job requests a GitHub OIDC token and exchanges it for temporary AWS credentials on the role in the `AWS_ROLE_ARN` variable. That role trusts only `repo:jadofils@114186160/week-3-lab-2-orders-app@1460005073:ref:refs/heads/main` (GitHub's immutable subject: owner and repository names with their permanent numeric IDs).
+1. **CI** (`ci.yml`) runs on every pull request and every push: gitleaks over the full history, a check that no workflow uses AWS keys, `mvn verify`, and a `docker build` without pushing. It has no AWS access.
+2. When CI passes on a push to `main`, it triggers **CD** (`build-and-push.yml`), which checks out exactly the commit CI tested. CD requests a GitHub OIDC token and exchanges it for temporary AWS credentials on the role in the `AWS_ROLE_ARN` variable. That role trusts only `repo:jadofils@114186160/week-3-lab-2-orders-app@1460005073:ref:refs/heads/main` (GitHub's immutable subject: owner and repository names with their permanent numeric IDs).
 3. It pushes the image as `sha-<commit>` and then moves `latest` to it.
 4. The `latest` push fires the EventBridge rule in the infrastructure stack. CodePipeline pins the image by digest, and CodeDeploy shifts traffic 10% → 100% with automatic rollback on errors.
 

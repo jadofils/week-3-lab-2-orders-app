@@ -55,8 +55,8 @@ mvn verify            # 20 tests: validator, repository, CPU spike limits, ECS t
 
 Merging to `main` is the only manual step.
 
-1. [`.github/workflows/build-and-push.yml`](../.github/workflows/build-and-push.yml) runs `mvn verify` on every pull request and push.
-2. On `main`, it builds the container image from the [`Dockerfile`](../Dockerfile) (Java 21 JRE, non-root, port 8080).
+1. **CI**, [`.github/workflows/ci.yml`](../.github/workflows/ci.yml), runs on every pull request and push: a credential scan, `mvn verify`, and a check that the image builds. It has no AWS access.
+2. **CD**, [`.github/workflows/build-and-push.yml`](../.github/workflows/build-and-push.yml), starts only after CI passes on `main`. It builds the commit CI tested from the [`Dockerfile`](../Dockerfile) (Java 21 JRE, non-root, port 8080).
 3. It signs in to AWS with **GitHub OIDC**, assuming the role in the `AWS_ROLE_ARN` repository variable. No AWS keys are stored in GitHub.
 4. It pushes the image to the ECR repository `onward-dev-orders`, tagged `sha-<commit>` (immutable) and `latest`.
 5. The `latest` push fires an EventBridge rule. CodePipeline and CodeDeploy then release it blue/green, with no downtime and automatic rollback on errors.
