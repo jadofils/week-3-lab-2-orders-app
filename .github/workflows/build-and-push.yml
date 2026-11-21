@@ -68,39 +68,15 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # Two tags: sha-<commit> (immutable, one per release) and latest (starts the pipeline).
       - name: Build image
         env:
-          REGISTRY: ${{ steps.ecr.outputs.registry }}
-        run: |
-          IMAGE="$REGISTRY/$ECR_REPOSITORY"
-          TAG="sha-${RELEASE_SHA::7}"
-          docker build --platform linux/amd64 \
-            --label org.opencontainers.image.revision="$RELEASE_SHA" \
-            --label org.opencontainers.image.source="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
-            -t "$IMAGE:$TAG" -t "$IMAGE:latest" .
-          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
-          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+        run: docker build --platform linux/amd64 -t "$IMAGE:sha-${RELEASE_SHA::7}" -t "$IMAGE:latest" .
 
-      - name: Push sha-<commit>, then latest
+      - name: Push image
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
         run: |
-          # sha- tags are immutable in ECR. On a re-run of the same commit the tag already
-          # exists, so skip it and only move latest (which starts the pipeline again).
-          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
-               --image-ids imageTag="$TAG" >/dev/null 2>&1; then
-            echo "$TAG already in ECR; skipping it"
-          else
-            docker push "$IMAGE:$TAG"
-          fi
+          docker push "$IMAGE:sha-${RELEASE_SHA::7}"
           docker push "$IMAGE:latest"
-
-      - name: Summary
-        run: |
-          DIGEST=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
-            --image-ids imageTag=latest --query 'imageDetails[0].imageDigest' --output text)
-          {
-            echo "### Pushed to Amazon ECR"
-            echo "- Commit: \`$RELEASE_SHA\`"
-            echo "- Image: \`$IMAGE:$TAG\` (also \`latest\`)"
-            echo "- Digest: \`$DIGEST\`"
-            echo "- EventBridge starts \`onward-dev-orders-pipeline\`; CodeDeploy releases it blue/green."
-          } >> "$GITHUB_STEP_SUMMARY"
